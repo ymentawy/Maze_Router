@@ -87,10 +87,11 @@ class LeeRouter:
                     continue
 
                 move_cost = 1
+
                 if curr_layer != new_layer:
-                    move_cost += self.via_penalty
-                elif (curr_layer == 0 and dy != 0) or (curr_layer == 1 and dx != 0):
-                    move_cost += self.bend_penalty
+                    move_cost += self.via_penalty - 1
+                    if not (new_x == end_x or new_y == end_y) or new_layer != end_layer:
+                      move_cost += self.bend_penalty
 
                 new_cost = wave_grid[curr_layer][curr_y, curr_x] + move_cost
                 if new_cost < wave_grid[new_layer][new_y, new_x]:
@@ -169,6 +170,9 @@ def main():
     router.add_obstacle(1, 7, 11)
 
     path, cost = router.route_net("net1", [(0, 5, 5), (0, 11, 3)])
+    print(f"Net1 routing cost: {cost:.2f}")
+
+    path, cost = router.route_net("net2", [(0, 5, 5), (0, 9, 10)])
     print(f"Net1 routing cost: {cost:.2f}")
 
     router.save_routing("routing_output.txt")
