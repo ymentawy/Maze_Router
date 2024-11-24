@@ -10,9 +10,10 @@ Original file is located at
 import numpy as np
 from queue import Queue
 from typing import List, Tuple, Dict
+from parser import parse_input_file
 
 class LeeRouter:
-    def __init__(self, width: int, height: int, bend_penalty: int, via_penalty: int):
+    def __init__(self, height: int, width: int, bend_penalty: int, via_penalty: int):
         self.width = width
         self.height = height
         self.bend_penalty = bend_penalty
@@ -47,7 +48,6 @@ class LeeRouter:
             else:
                 full_path.extend(path[1:])
             total_cost += cost
-
         self.routed_nets[net_name] = (full_path, total_cost)
         return full_path, total_cost
 
@@ -119,63 +119,86 @@ class LeeRouter:
 
 
 def main():
-    router = LeeRouter(14, 14, 0, 0)
+    while True:
+        inputFileName = input("Enter the name of the file, or X to leave: ")
+        if (inputFileName == "X" or inputFileName == "x"):
+            break
+        print("\n")
+        N, M, bend_penalty, via_penalty, obstacles, nets = parse_input_file(inputFileName)
+        router = LeeRouter(N, M, bend_penalty, via_penalty)
+        for obstacle in obstacles:
+            router.add_obstacle(obstacle[0], obstacle[1], obstacle[2])
+        for netName, netPoints in nets.items():
+            print("POTATOOO", netName, netPoints)
+            router.route_net(netName, netPoints)
+        outputFileName = input("Enter the name of file to save the output: ")
+        print("\n")
+        router.save_routing(outputFileName)
 
-    router.add_obstacle(0, 8, 1)
-    router.add_obstacle(0, 8, 2)
-    router.add_obstacle(0, 8, 3)
-    router.add_obstacle(0, 8, 4)
-    router.add_obstacle(0, 8, 5)
-    router.add_obstacle(0, 8, 6)
 
-    router.add_obstacle(0, 9, 1)
-    router.add_obstacle(0, 9, 2)
-    router.add_obstacle(0, 9, 3)
-    router.add_obstacle(0, 9, 4)
-    router.add_obstacle(0, 9, 5)
-    router.add_obstacle(0, 9, 6)
 
-    router.add_obstacle(0, 7, 6)
-    router.add_obstacle(0, 6, 6)
-    router.add_obstacle(0, 5, 6)
 
-    router.add_obstacle(0, 7, 7)
-    router.add_obstacle(0, 7, 8)
-    router.add_obstacle(0, 7, 9)
-    router.add_obstacle(0, 7, 10)
-    router.add_obstacle(0, 7, 11)
 
-    router.add_obstacle(1, 8, 1)
-    router.add_obstacle(1, 8, 2)
-    router.add_obstacle(1, 8, 3)
-    router.add_obstacle(1, 8, 4)
-    router.add_obstacle(1, 8, 5)
-    router.add_obstacle(1, 8, 6)
 
-    router.add_obstacle(1, 9, 1)
-    router.add_obstacle(1, 9, 2)
-    router.add_obstacle(1, 9, 3)
-    router.add_obstacle(1, 9, 4)
-    router.add_obstacle(1, 9, 5)
-    router.add_obstacle(1, 9, 6)
 
-    router.add_obstacle(1, 7, 6)
-    router.add_obstacle(1, 6, 6)
-    router.add_obstacle(1, 5, 6)
 
-    router.add_obstacle(1, 7, 7)
-    router.add_obstacle(1, 7, 8)
-    router.add_obstacle(1, 7, 9)
-    router.add_obstacle(1, 7, 10)
-    router.add_obstacle(1, 7, 11)
+    # router = LeeRouter(14, 14, 0, 0)
 
-    path, cost = router.route_net("net1", [(0, 5, 5), (0, 11, 3)])
-    print(f"Net1 routing cost: {cost:.2f}")
+    # router.add_obstacle(0, 8, 1)
+    # router.add_obstacle(0, 8, 2)
+    # router.add_obstacle(0, 8, 3)
+    # router.add_obstacle(0, 8, 4)
+    # router.add_obstacle(0, 8, 5)
+    # router.add_obstacle(0, 8, 6)
 
-    path, cost = router.route_net("net2", [(0, 5, 5), (0, 9, 10)])
-    print(f"Net1 routing cost: {cost:.2f}")
+    # router.add_obstacle(0, 9, 1)
+    # router.add_obstacle(0, 9, 2)
+    # router.add_obstacle(0, 9, 3)
+    # router.add_obstacle(0, 9, 4)
+    # router.add_obstacle(0, 9, 5)
+    # router.add_obstacle(0, 9, 6)
 
-    router.save_routing("routing_output.txt")
+    # router.add_obstacle(0, 7, 6)
+    # router.add_obstacle(0, 6, 6)
+    # router.add_obstacle(0, 5, 6)
+
+    # router.add_obstacle(0, 7, 7)
+    # router.add_obstacle(0, 7, 8)
+    # router.add_obstacle(0, 7, 9)
+    # router.add_obstacle(0, 7, 10)
+    # router.add_obstacle(0, 7, 11)
+
+    # router.add_obstacle(1, 8, 1)
+    # router.add_obstacle(1, 8, 2)
+    # router.add_obstacle(1, 8, 3)
+    # router.add_obstacle(1, 8, 4)
+    # router.add_obstacle(1, 8, 5)
+    # router.add_obstacle(1, 8, 6)
+
+    # router.add_obstacle(1, 9, 1)
+    # router.add_obstacle(1, 9, 2)
+    # router.add_obstacle(1, 9, 3)
+    # router.add_obstacle(1, 9, 4)
+    # router.add_obstacle(1, 9, 5)
+    # router.add_obstacle(1, 9, 6)
+
+    # router.add_obstacle(1, 7, 6)
+    # router.add_obstacle(1, 6, 6)
+    # router.add_obstacle(1, 5, 6)
+
+    # router.add_obstacle(1, 7, 7)
+    # router.add_obstacle(1, 7, 8)
+    # router.add_obstacle(1, 7, 9)
+    # router.add_obstacle(1, 7, 10)
+    # router.add_obstacle(1, 7, 11)
+
+    # path, cost = router.route_net("net1", [(0, 5, 5), (0, 11, 3)])
+    # print(f"Net1 routing cost: {cost:.2f}")
+
+    # path, cost = router.route_net("net2", [(0, 5, 5), (0, 9, 10)])
+    # print(f"Net1 routing cost: {cost:.2f}")
+
+    # router.save_routing("routing_output.txt")
 
 if __name__ == "__main__":
     main()
