@@ -33,7 +33,8 @@ def parse_input_file(file_path):
             for pin in pin_matches:
                 layer, x, y = map(int, pin.strip("()").split(','))
                 if 0 <= x < N and 0 <= y < M:
-                    pins.append((layer, x, y))
+                    if (layer, x, y) not in obstacles:
+                        pins.append((layer, x, y))
                     # print(f"Valid pin added: Layer={layer}, x={x}, y={y}")
                 # else:
                 #     print(f"Ignoring invalid pin: Layer {layer}, ({x}, {y})")
