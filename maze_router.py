@@ -10,208 +10,195 @@ Original file is located at
 import numpy as np
 from queue import Queue
 from typing import List, Tuple, Dict
+from parser import parse_input_file
 
 class LeeRouter:
-    def __init__(self, width: int, height: int, bend_penalty: int, via_penalty: int):
-
+    def __init__(self, height: int, width: int, bend_penalty: int, via_penalty: int):
         self.width = width
         self.height = height
         self.bend_penalty = bend_penalty
         self.via_penalty = via_penalty
-
         self.layers = [
             np.zeros((height, width), dtype=int),
             np.zeros((height, width), dtype=int)
         ]
-
         self.routed_nets: Dict[str, Tuple[List[Tuple[int, int, int]], float]] = {}
 
     def add_obstacle(self, layer: int, x: int, y: int):
-
-        if 0 <= y < self.height and 0 <= x < self.width:
+        if 0 <= layer < 2 and 0 <= x < self.width and 0 <= y < self.height:
             self.layers[layer][y, x] = -1
 
     def route_net(self, net_name: str, pins: List[Tuple[int, int, int]]) -> Tuple[List[Tuple[int, int, int]], float]:
-
         if len(pins) < 2:
             raise ValueError("Net must have at least two pins")
 
-        adjusted_pins = []
-        for layer, x, y in pins:
-            x = max(0, min(x, self.width - 1))
-            y = max(0, min(y, self.height - 1))
-            adjusted_pins.append((layer, x, y))
+        adjusted_pins = [(max(0, min(layer, 1)), max(0, min(x, self.width - 1)), max(0, min(y, self.height - 1)))
+                         for layer, x, y in pins]
 
         full_path = []
-        total_cost = 0.0
+        total_cost = 0
 
         for i in range(len(adjusted_pins) - 1):
             start_layer, start_x, start_y = adjusted_pins[i]
-            end_layer, end_x, end_y = adjusted_pins[i+1]
+            end_layer, end_x, end_y = adjusted_pins[i + 1]
 
-            path, cost = self._lee_route(
-                start_layer, start_x, start_y,
-                end_layer, end_x, end_y
-            )
-            full_path.extend(path[1:] if full_path else path)
+            path, cost = self._lee_route(start_layer, start_x, start_y, end_layer, end_x, end_y)
+            if not full_path:
+                full_path.extend(path)
+            else:
+                full_path.extend(path[1:])
             total_cost += cost
-
         self.routed_nets[net_name] = (full_path, total_cost)
         return full_path, total_cost
 
-    def _lee_route(self, start_layer: int, start_x: int, start_y: int,
-                   end_layer: int, end_x: int, end_y: int) -> Tuple[List[Tuple[int, int, int]], float]:
-
+    def _lee_route(self, start_layer: int, start_x: int, start_y: int, end_layer: int, end_x: int, end_y: int) -> Tuple[List[Tuple[int, int, int]], float]:
         directions = [
-            (1, 0, 0), (-1, 0, 0), (0, 1, 0), (0, -1, 0),
+            (1, 0, 0), (-1, 0, 0),
+            (0, 1, 0), (0, -1, 0),
             (0, 0, 1), (0, 0, -1)
         ]
 
-        wave_grid = [np.full((self.height, self.width), np.inf) for i in range(2)]
-
-        prev_direction_grid = [
-            np.full((self.height, self.width), -1, dtype=int) for i in range(2)
-        ]
-
+        wave_grid = [np.full((self.height, self.width), np.inf) for _ in range(2)]
         wave_grid[start_layer][start_y, start_x] = 0
-        prev_direction_grid[start_layer][start_y, start_x] = -1
 
         queue = Queue()
-        queue.put((start_layer, start_x, start_y, -1))
+        queue.put((start_layer, start_x, start_y))
 
-        visited = set()
+        came_from = {}
 
         while not queue.empty():
-            curr_layer, curr_x, curr_y, prev_dir = queue.get()
+            curr_layer, curr_x, curr_y = queue.get()
 
-            if curr_layer == end_layer and curr_x == end_x and curr_y == end_y:
+            if (curr_layer, curr_x, curr_y) == (end_layer, end_x, end_y):
                 break
 
-            if (curr_layer, curr_x, curr_y) in visited:
-                continue
-            visited.add((curr_layer, curr_x, curr_y))
-
-            for dir_idx, (dx, dy, dlayer) in enumerate(directions):
+            for dx, dy, dlayer in directions:
                 new_layer = curr_layer + dlayer
                 new_x, new_y = curr_x + dx, curr_y + dy
 
-                if (0 <= new_layer < len(self.layers) and
-                    0 <= new_x < self.width and
-                    0 <= new_y < self.height and
-                    self.layers[new_layer if dlayer != 0 else curr_layer][new_y, new_x] != -1):
+                if not (0 <= new_layer < 2 and 0 <= new_x < self.width and 0 <= new_y < self.height):
+                    continue
+                if self.layers[new_layer][new_y, new_x] == -1:
+                    continue
 
-                    cost_increment = 1
+                if curr_layer == 0 and dy != 0:
+                    continue
+                if curr_layer == 1 and dx != 0:
+                    continue
 
-                    if dlayer == 0 and prev_dir != -1:
-                        prev_dx, prev_dy, _ = directions[prev_dir]
-                        if (prev_dx != 0 and dy != 0) or (prev_dy != 0 and dx != 0):
-                            cost_increment += self.bend_penalty
+                move_cost = 1
 
-                    if dlayer != 0:
-                        cost_increment += self.via_penalty
+                if curr_layer != new_layer:
+                    move_cost += self.via_penalty - 1
+                    if not (new_x == end_x or new_y == end_y) or new_layer != end_layer:
+                      move_cost += self.bend_penalty
 
-                    new_cost = wave_grid[curr_layer][curr_y, curr_x] + cost_increment
+                new_cost = wave_grid[curr_layer][curr_y, curr_x] + move_cost
+                if new_cost < wave_grid[new_layer][new_y, new_x]:
+                    wave_grid[new_layer][new_y, new_x] = new_cost
+                    queue.put((new_layer, new_x, new_y))
+                    came_from[(new_layer, new_x, new_y)] = (curr_layer, curr_x, curr_y)
 
-                    if new_cost < wave_grid[new_layer if dlayer != 0 else curr_layer][new_y, new_x]:
-                        wave_grid[new_layer if dlayer != 0 else curr_layer][new_y, new_x] = new_cost
-                        prev_direction_grid[new_layer if dlayer != 0 else curr_layer][new_y, new_x] = dir_idx
-                        queue.put((new_layer if dlayer != 0 else curr_layer, new_x, new_y, dir_idx))
+        if np.isinf(wave_grid[end_layer][end_y, end_x]):
+            raise ValueError(f"No valid path found from {(start_layer, start_x, start_y)} to {(end_layer, end_x, end_y)}")
 
-        final_cost = wave_grid[end_layer][end_y, end_x]
-        if np.isinf(final_cost):
-            raise ValueError("No valid path found")
+        path = []
+        curr_pos = (end_layer, end_x, end_y)
+        while curr_pos != (start_layer, start_x, start_y):
+            path.append(curr_pos)
+            curr_pos = came_from[curr_pos]
+        path.append((start_layer, start_x, start_y))
 
-        path = [(end_layer, end_x, end_y)]
-        curr_layer, curr_x, curr_y = end_layer, end_x, end_y
-
-        while not (curr_layer == start_layer and curr_x == start_x and curr_y == start_y):
-            best_prev = None
-            min_cost = np.inf
-
-            for dx, dy, dlayer in directions:
-                prev_layer = curr_layer - dlayer
-                prev_x, prev_y = curr_x - dx, curr_y - dy
-
-                if (0 <= prev_layer < len(self.layers) and
-                    0 <= prev_x < self.width and
-                    0 <= prev_y < self.height and
-                    self.layers[prev_layer][prev_y, prev_x] != -1):
-
-                    cost = wave_grid[prev_layer][prev_y, prev_x]
-                    if cost < min_cost:
-                        min_cost = cost
-                        best_prev = (prev_layer, prev_x, prev_y)
-
-            if best_prev is None:
-                raise ValueError("No valid path found")
-
-            path.insert(0, best_prev)
-            curr_layer, curr_x, curr_y = best_prev
-
-        return path, final_cost
+        return path[::-1], wave_grid[end_layer][end_y, end_x]
 
     def save_routing(self, output_file: str):
-        """Save routed nets and their costs to output file"""
         with open(output_file, 'w') as f:
             for net_name, (path, cost) in self.routed_nets.items():
-                path_str = ' '.join([f"({layer},{x},{y})" for layer,x,y in path])
+                path_str = ' '.join([f"({layer},{x},{y})" for layer, x, y in path])
                 f.write(f"{net_name} Cost: {cost:.2f} Path: {path_str}\n")
 
+
 def main():
-    router = LeeRouter(14, 14, 1, 0)
+    while True:
+        inputFileName = input("Enter the name of the file, or X to leave: ")
+        if (inputFileName == "X" or inputFileName == "x"):
+            break
+        print("\n")
+        N, M, bend_penalty, via_penalty, obstacles, nets = parse_input_file(inputFileName)
+        router = LeeRouter(N, M, bend_penalty, via_penalty)
+        for obstacle in obstacles:
+            router.add_obstacle(obstacle[0], obstacle[1], obstacle[2])
+        for netName, netPoints in nets.items():
+            print("POTATOOO", netName, netPoints)
+            router.route_net(netName, netPoints)
+        outputFileName = input("Enter the name of file to save the output: ")
+        print("\n")
+        router.save_routing(outputFileName)
 
-    router.add_obstacle(0, 8, 1)
-    router.add_obstacle(0, 8, 2)
-    router.add_obstacle(0, 8, 3)
-    router.add_obstacle(0, 8, 4)
-    router.add_obstacle(0, 8, 5)
-    router.add_obstacle(0, 8, 6)
 
-    router.add_obstacle(0, 9, 1)
-    router.add_obstacle(0, 9, 2)
-    router.add_obstacle(0, 9, 3)
-    router.add_obstacle(0, 9, 4)
-    router.add_obstacle(0, 9, 5)
-    router.add_obstacle(0, 9, 6)
 
-    router.add_obstacle(0, 7, 6)
-    router.add_obstacle(0, 6, 6)
-    router.add_obstacle(0, 5, 6)
 
-    router.add_obstacle(0, 7, 7)
-    router.add_obstacle(0, 7, 8)
-    router.add_obstacle(0, 7, 9)
-    router.add_obstacle(0, 7, 10)
-    router.add_obstacle(0, 7, 11)
 
-    router.add_obstacle(1, 8, 1)
-    router.add_obstacle(1, 8, 2)
-    router.add_obstacle(1, 8, 3)
-    router.add_obstacle(1, 8, 4)
-    router.add_obstacle(1, 8, 5)
-    router.add_obstacle(1, 8, 6)
 
-    router.add_obstacle(1, 9, 1)
-    router.add_obstacle(1, 9, 2)
-    router.add_obstacle(1, 9, 3)
-    router.add_obstacle(1, 9, 4)
-    router.add_obstacle(1, 9, 5)
-    router.add_obstacle(1, 9, 6)
 
-    router.add_obstacle(1, 7, 6)
-    router.add_obstacle(1, 6, 6)
-    router.add_obstacle(1, 5, 6)
 
-    router.add_obstacle(1, 7, 7)
-    router.add_obstacle(1, 7, 8)
-    router.add_obstacle(1, 7, 9)
-    router.add_obstacle(1, 7, 10)
-    router.add_obstacle(1, 7, 11)
+    # router = LeeRouter(14, 14, 0, 0)
 
-    path, cost = router.route_net("net1", [(0, 5, 5), (0, 11, 3)])
-    print(f"Net1 routing cost: {cost:.2f}")
+    # router.add_obstacle(0, 8, 1)
+    # router.add_obstacle(0, 8, 2)
+    # router.add_obstacle(0, 8, 3)
+    # router.add_obstacle(0, 8, 4)
+    # router.add_obstacle(0, 8, 5)
+    # router.add_obstacle(0, 8, 6)
 
-    router.save_routing("routing_output.txt")
+    # router.add_obstacle(0, 9, 1)
+    # router.add_obstacle(0, 9, 2)
+    # router.add_obstacle(0, 9, 3)
+    # router.add_obstacle(0, 9, 4)
+    # router.add_obstacle(0, 9, 5)
+    # router.add_obstacle(0, 9, 6)
+
+    # router.add_obstacle(0, 7, 6)
+    # router.add_obstacle(0, 6, 6)
+    # router.add_obstacle(0, 5, 6)
+
+    # router.add_obstacle(0, 7, 7)
+    # router.add_obstacle(0, 7, 8)
+    # router.add_obstacle(0, 7, 9)
+    # router.add_obstacle(0, 7, 10)
+    # router.add_obstacle(0, 7, 11)
+
+    # router.add_obstacle(1, 8, 1)
+    # router.add_obstacle(1, 8, 2)
+    # router.add_obstacle(1, 8, 3)
+    # router.add_obstacle(1, 8, 4)
+    # router.add_obstacle(1, 8, 5)
+    # router.add_obstacle(1, 8, 6)
+
+    # router.add_obstacle(1, 9, 1)
+    # router.add_obstacle(1, 9, 2)
+    # router.add_obstacle(1, 9, 3)
+    # router.add_obstacle(1, 9, 4)
+    # router.add_obstacle(1, 9, 5)
+    # router.add_obstacle(1, 9, 6)
+
+    # router.add_obstacle(1, 7, 6)
+    # router.add_obstacle(1, 6, 6)
+    # router.add_obstacle(1, 5, 6)
+
+    # router.add_obstacle(1, 7, 7)
+    # router.add_obstacle(1, 7, 8)
+    # router.add_obstacle(1, 7, 9)
+    # router.add_obstacle(1, 7, 10)
+    # router.add_obstacle(1, 7, 11)
+
+    # path, cost = router.route_net("net1", [(0, 5, 5), (0, 11, 3)])
+    # print(f"Net1 routing cost: {cost:.2f}")
+
+    # path, cost = router.route_net("net2", [(0, 5, 5), (0, 9, 10)])
+    # print(f"Net1 routing cost: {cost:.2f}")
+
+    # router.save_routing("routing_output.txt")
 
 if __name__ == "__main__":
     main()

@@ -2,47 +2,47 @@ import math
 import re
 
 def parse_input_file(file_path):
-
     with open(file_path, 'r') as file:
         lines = file.readlines()
 
-   
     grid_info = lines[0].strip().split(',')
     N = int(grid_info[0])  
-    M = int(grid_info[1])  
+    M = int(grid_info[1]) 
     bend_penalty = int(grid_info[2]) 
     via_penalty = int(grid_info[3])  
+
+    print(f"Parsed dimensions: N={N}, M={M}, Bend Penalty={bend_penalty}, Via Penalty={via_penalty}")
 
     obstacles = []
     nets = {}
 
-   
     for line in lines[1:]:
         line = line.strip()
         if line.startswith("OBS"):
-           
             parts = line.split('(')[1].rstrip(')').split(',')
             layer, x, y = map(int, parts)
-            obstacles.append((layer, x, y))
+            if 0 <= x < N and 0 <= y < M:
+                obstacles.append((layer, x, y))
+                # print(f"Valid obstacle added: Layer={layer}, x={x}, y={y}")
+            # else:
+                # print(f"Ignoring invalid obstacle: Layer={layer}, x={x}, y={y}")
         elif line.startswith("net"):
-           
             net_name = line.split()[0]
             pins = []
-           
             pin_matches = re.findall(r'\(\d+,\s*\d+,\s*\d+\)', line)
             for pin in pin_matches:
-                print(f"Raw pin: '{pin}'") 
-                try:
-                    
-                    layer, x, y = map(int, pin.strip("()").split(','))
+                layer, x, y = map(int, pin.strip("()").split(','))
+                if 0 <= x < N and 0 <= y < M:
                     pins.append((layer, x, y))
-                except ValueError as e:
-                    print(f"Error parsing pin '{pin}': {e}")
-                    continue
+                    # print(f"Valid pin added: Layer={layer}, x={x}, y={y}")
+                # else:
+                #     print(f"Ignoring invalid pin: Layer {layer}, ({x}, {y})")
             nets[net_name] = pins
+            if not pins:
+                print(f"Warning: Net '{net_name}' has no valid pins and will be skipped.")
+                del nets[net_name]
 
     return N, M, bend_penalty, via_penalty, obstacles, nets
-
 
 def initialize_grid(N, M):
     
@@ -89,5 +89,5 @@ def main():
     print(f"M1[55, 77]: {grid_M1.get((55, 77), 'Not Found')}")
 
 
-if __name__ == "__main__":
+if __name__ == "_main_":
     main()
