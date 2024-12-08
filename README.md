@@ -42,6 +42,34 @@ Ali Elkhouly:
 
     When you run the code, it prompts you to add the name of the file to test. Just write it and it will produce a text file with the output in the format of a single line per net. After that, it produces a plot to visualize the plotting.
 
+#
+
+## Implementation
+
+The user inputs the name of the file, then the program reads the file and parses it into the class Lee Router using REGEX. We first received the grid size followed by the cost of changing direction and using a via.
+
+As obstacles are first in the file, we give them priority and add them to the grid. Then, we place the pins (we avoid any pin colliding with an obstacle)
+
+We start by plotting the wires with priority based on the number of pins (the less pins, the higher the priority). In case of two equal number of pins in two nets, we then use the Manhattan Distance case. If both are equal, then we use the FCFS approach.
+
+We then use the Lee Routing algorithm to find the shortest path between the pins in the 2D grid. It moves in 4 directions searching for the fastest way to the next pin.
+
+#
+
+## Challenges
+
+#
+
+- Finding bugs and fixing them
+- - Finding bugs and things that would break our code was a bit of a challenge.
+- - Not to mention, thinking of solutions and fixing them was also difficult.
+
+- Corner Cases
+- - Checking every corner case that came to mind and fixing them was a hassle.
+
+- Time Constraint
+- - Other courses' demands and projects limited the production with this project.
+
 ## Visualization plan
 
 Display the grid as a 2D grid
