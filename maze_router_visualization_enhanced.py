@@ -106,6 +106,9 @@ class LeeRouter:
                     router.routed_nets[net_name] = (pins, 0.0)  
 
             return router
+    
+    
+
 
 
     def add_obstacle(self, layer: int, x: int, y: int):
@@ -114,7 +117,6 @@ class LeeRouter:
             self.obstacles.append((layer, x, y))
 
     def route_all_nets(self):
-        
         self.sort_nets_by_priority()
 
         longest_route = 0
@@ -122,26 +124,53 @@ class LeeRouter:
         total_vias = 0
 
         for net_name, (pins, _) in self.routed_nets.items():
-            try:
-                path, cost = self.route_net(net_name, pins)
-                self.routed_nets[net_name] = (path, cost)
+            while len(pins) >= 2:
+                try:
+                    path, cost = self.route_net(net_name, pins)
+                    self.routed_nets[net_name] = (path, cost)
 
-                
-                wire_length = len(path) - 1
-                vias = sum(1 for i in range(len(path) - 1) if path[i][0] != path[i + 1][0])
-                total_wire_length += wire_length
-                total_vias += vias
-                longest_route = max(longest_route, wire_length)
+                    wire_length = len(path) - 1
+                    vias = sum(1 for i in range(len(path) - 1) if path[i][0] != path[i + 1][0])
+                    total_wire_length += wire_length
+                    total_vias += vias
+                    longest_route = max(longest_route, wire_length)
 
-                print(f"{net_name} routed with cost: {cost:.2f}")
-            except ValueError as e:
-                print(f"Failed to route {net_name}: {e}")
+                    print(f"{net_name} routed with cost: {cost:.2f}")
+                    break  # Exit the while loop if routing is successful
+                except ValueError as e:
+                    print(f"Failed to route {net_name}: {e}")
+                    if len(pins) > 2:
+                        print(f"Removing first pin and retrying for net {net_name}")
+                        first_pin = pins.pop(0)  # Remove the first pin and try again
+                        try:
+                            path, cost = self.route_net(net_name, pins)
+                            self.routed_nets[net_name] = (path, cost)
 
-       
+                            wire_length = len(path) - 1
+                            vias = sum(1 for i in range(len(path) - 1) if path[i][0] != path[i + 1][0])
+                            total_wire_length += wire_length
+                            total_vias += vias
+                            longest_route = max(longest_route, wire_length)
+
+                            print(f"{net_name} routed with cost: {cost:.2f}")
+                            break  # Exit the while loop if routing is successful
+                        except ValueError as e:
+                            print(f"Failed to route {net_name} after removing first pin: {e}")
+                            pins.insert(0, first_pin)  # Return the first pin back
+                            print(f"Removing second pin and retrying for net {net_name}")
+                            pins.pop(1)  # Remove the second pin and try again
+                    else:
+                        print(f"Removing last pin and retrying for net {net_name}")
+                        pins.pop()  # Remove the last pin and try again
+                    if len(pins) < 2:
+                        print(f"Not enough pins to route net {net_name} after removing isolated pins.")
+                        break  # Exit the while loop if fewer than two pins are left
+
         print("\nRouting Metrics:")
         print(f"Longest Route: {longest_route} segments")
         print(f"Total Wire Length: {total_wire_length} segments")
         print(f"Total Number of Vias: {total_vias}")
+
     def net_priority(self, net: Tuple[str, List[Tuple[int, int, int]]]) -> Tuple[int, float]:
         """
         Heuristic for prioritizing nets.
@@ -158,7 +187,7 @@ class LeeRouter:
             total_distance += abs(x1 - x2) + abs(y1 - y2)
 
         
-        return (-num_pins, total_distance)
+        return (num_pins, total_distance)
 
     def sort_nets_by_priority(self):
         """
@@ -287,178 +316,143 @@ class LeeRouter:
     
         
     def visualize_routing(self):
-          """
-          Create a comprehensive single-grid visualization of the routing with dynamic color generation
-          """
-      
-          colors = {
-              'background': '#F0F0F0',  
-              'grid': '#E0E0E0',       
-              'layers': {
-                  'M0': '#4169E1',      
-                  'M1': '#32CD32'      
-              },
-              'obstacles': '#8B0000',   
-              'start_points': '#00FF00',
-              'end_points': '#FF0000',  
-              'via_points': '#800080'   
-          }
+        """
+        Create a comprehensive single-grid visualization of the routing with dynamic color generation
+        """
 
-          
-          for net_name in self.routed_nets.keys():
-              if net_name not in self.net_colors:
-                  self.net_colors[net_name] = self._generate_unique_color()
+        colors = {
+            'background': '#F0F0F0',  
+            'grid': '#E0E0E0',       
+            'layers': {
+                'M0': '#4169E1',      
+                'M1': '#32CD32'      
+            },
+            'obstacles': '#8B0000',   
+            'start_points': '#00FF00',
+            'end_points': '#FF0000',  
+            'via_points': '#800080'   
+        }
 
-          
-          fig, ax = plt.subplots(figsize=(14, 10))  
-          fig.suptitle('Two-Layer Maze Router Visualization', fontsize=16, fontweight='bold')
+        for net_name in self.routed_nets.keys():
+            if net_name not in self.net_colors:
+                self.net_colors[net_name] = self._generate_unique_color()
 
-          
-          ax.set_xlim(0, self.width)
-          ax.set_ylim(0, self.height)
-          ax.set_xticks(np.arange(0, self.width+1, 2))  
-          ax.set_yticks(np.arange(0, self.height+1, 2))  
-          ax.grid(color=colors['grid'], linestyle='--', linewidth=0.5)
-          ax.set_facecolor(colors['background'])
+        fig, ax = plt.subplots(figsize=(14, 10))  
+        fig.suptitle('Two-Layer Maze Router Visualization', fontsize=16, fontweight='bold')
 
-          
-          for layer, x, y in self.obstacles:
-              layer_name = 'M0' if layer == 0 else 'M1'
-              ax.add_patch(
-                  patches.Rectangle(
-                      (x, y), 1, 1,
-                      facecolor=colors['obstacles'],
-                      alpha=0.7,
-                      edgecolor='black',
-                      hatch='///' if layer == 1 else '',
-                      label=f'Obstacle on {layer_name}'
-                  )
-              )
+        ax.set_xlim(0, self.width)
+        ax.set_ylim(0, self.height)
+        ax.set_xticks(np.arange(0, self.width + 1, 2))  
+        ax.set_yticks(np.arange(0, self.height + 1, 2))  
+        ax.grid(color=colors['grid'], linestyle='--', linewidth=0.5)
+        ax.set_facecolor(colors['background'])
 
-          
-          layer_styles = {
-              'M0': {'linestyle': '-', 'marker': 'o'},     
-              'M1': {'linestyle': '--', 'marker': 's'}      
-          }
+        # Draw obstacles
+        for layer, x, y in self.obstacles:
+            ax.add_patch(
+                patches.Rectangle(
+                    (x, y), 1, 1,
+                    facecolor=colors['obstacles'],
+                    alpha=0.7,
+                    edgecolor='black',
+                    hatch='///' if layer == 1 else '',
+                )
+            )
 
-          
-          for net_name, (path, _) in self.routed_nets.items():
-              
-              path_color = self.net_colors[net_name]
+        layer_styles = {
+            'M0': {'linestyle': '-', 'marker': 'o'},     
+            'M1': {'linestyle': '--', 'marker': 's'}      
+        }
 
-              
-              for j in range(len(path) - 1):
-                  layer1, x1, y1 = path[j]
-                  layer2, x2, y2 = path[j+1]
+        # Draw routed nets
+        for net_name, (path, _) in self.routed_nets.items():
+            path_color = self.net_colors[net_name]
+            for j in range(len(path) - 1):
+                layer1, x1, y1 = path[j]
+                layer2, x2, y2 = path[j + 1]
+                layer_name = 'M0' if layer1 == 0 else 'M1'
+                style = layer_styles[layer_name]
 
-                  
-                  layer_name = 'M0' if layer1 == 0 else 'M1'
+                ax.plot([x1 + 0.5, x2 + 0.5], [y1 + 0.5, y2 + 0.5],
+                        color=path_color,
+                        linewidth=3,
+                        linestyle=style['linestyle'],
+                        marker=style['marker'],
+                        markersize=8,
+                        alpha=0.7
+                )
 
-                  
-                  style = layer_styles[layer_name]
+                # Add via points if changing layers
+                if layer1 != layer2:
+                    via_point = patches.Circle(
+                        (x1 + 0.5, y1 + 0.5), 0.3,
+                        facecolor=colors['via_points'],
+                        edgecolor='black',
+                        alpha=0.7
+                    )
+                    ax.add_patch(via_point)
 
-                  
-                  ax.plot([x1+0.5, x2+0.5], [y1+0.5, y2+0.5],
-                          color=path_color,
-                          linewidth=3,
-                          linestyle=style['linestyle'],
-                          marker=style['marker'],
-                          markersize=8,
-                          label=f"{net_name} Path on {layer_name}",
-                          alpha=0.7
-                  )
+            if path:
+                start_layer, start_x, start_y = path[0]
+                end_layer, end_x, end_y = path[-1]
 
-                  
-                  if layer1 != layer2:
-                      via_point = patches.Circle(
-                          (x1+0.5, y1+0.5), 0.3,
-                          facecolor=colors['via_points'],
-                          edgecolor='black',
-                          alpha=0.7,
-                          label=f'Via Point between M0 and M1'
-                      )
-                      ax.add_patch(via_point)
+                start_point = patches.Circle(
+                    (start_x + 0.5, start_y + 0.5), 0.4,
+                    facecolor=colors['start_points'],
+                    edgecolor='black',
+                    alpha=0.9
+                )
+                ax.add_patch(start_point)
+                ax.text(start_x + 0.5, start_y + 0.5, 'S',
+                        color='black', fontweight='bold', fontsize=10, ha='center', va='center')
 
-              
-              if path:
-                  
-                  start_layer, start_x, start_y = path[0]
-                  start_point = patches.Circle(
-                      (start_x+0.5, start_y+0.5), 0.4,
-                      facecolor=colors['start_points'],
-                      edgecolor='black',
-                      alpha=0.9
-                  )
-                  ax.add_patch(start_point)
+                end_point = patches.Circle(
+                    (end_x + 0.5, end_y + 0.5), 0.4,
+                    facecolor=colors['end_points'],
+                    edgecolor='black',
+                    alpha=0.9
+                )
+                ax.add_patch(end_point)
+                ax.text(end_x + 0.5, end_y + 0.5, 'T',
+                        color='black', fontweight='bold', fontsize=10, ha='center', va='center')
 
-                  
-                  ax.text(start_x+0.5, start_y+0.5, 'S',
-                          color='black',
-                          fontweight='bold',
-                          fontsize=10,
-                          ha='center',
-                          va='center')
+        # Create separate legends
+        layer_explanation = [
+            patches.Patch(color=colors['layers']['M0'], alpha=0.3, label='Metal Layer 0'),
+            patches.Patch(color=colors['layers']['M1'], alpha=0.6, label='Metal Layer 1'),
+            patches.Patch(color=colors['obstacles'], alpha=0.7, label='Routing Obstacles'),
+            patches.Patch(color=colors['via_points'], alpha=0.7, label='Via Points'),
+            patches.Patch(color=colors['start_points'], alpha=0.9, label='Start Points (S)'),
+            patches.Patch(color=colors['end_points'], alpha=0.9, label='End Points (T)'),
+        ]
+        first_legend = ax.legend(handles=layer_explanation,
+                                loc='upper right',
+                                bbox_to_anchor=(1.2, 1),
+                                title='Layer and Point Explanation')
 
-                  
-                  end_layer, end_x, end_y = path[-1]
-                  end_point = patches.Circle(
-                      (end_x+0.5, end_y+0.5), 0.4,
-                      facecolor=colors['end_points'],
-                      edgecolor='black',
-                      alpha=0.9
-                  )
-                  ax.add_patch(end_point)
+        ax.add_artist(first_legend)
 
-                  
-                  ax.text(end_x+0.5, end_y+0.5, 'T',
-                          color='black',
-                          fontweight='bold',
-                          fontsize=10,
-                          ha='center',
-                          va='center')
+        net_path_explanation = [
+            patches.Patch(color=self.net_colors[net_name], alpha=0.7, label=f'{net_name} Path')
+            for net_name in self.routed_nets.keys()
+        ]
+        ax.legend(handles=net_path_explanation,
+                loc='lower right',
+                bbox_to_anchor=(1.13, 0),
+                title='Net Path Colors')
 
-        
-          layer_explanation = [
-              patches.Patch(color=colors['layers']['M0'], alpha=0.3, label='Metal Layer 0 (Horizontal Routing)'),
-              patches.Patch(color=colors['layers']['M1'], alpha=0.6, label='Metal Layer 1 (Vertical Routing)'),
-              patches.Patch(color=colors['obstacles'], alpha=0.7, label='Routing Obstacles'),
-              patches.Patch(color=colors['via_points'], alpha=0.7, label='Via Points (Inter-Layer Connections)'),
-              patches.Patch(color=colors['start_points'], alpha=0.9, label='Start Points (S)'),
-              patches.Patch(color=colors['end_points'], alpha=0.9, label='End Points (T)'),
-          ]
+        ax.set_xlabel('X Coordinate', fontweight='bold')
+        ax.set_ylabel('Y Coordinate', fontweight='bold')
 
-          
-          net_path_explanation = [
-              patches.Patch(color=self.net_colors[net_name], alpha=0.7, label=f'{net_name} Path')
-              for net_name in self.routed_nets.keys()
-          ]
-
-          
-          first_legend = ax.legend(handles=layer_explanation,
-                                    loc='center left',
-                                    bbox_to_anchor=(1, 0.7),
-                                    title='Layer and Point Explanation')
-          ax.add_artist(first_legend)
-
-          ax.legend(handles=net_path_explanation,
-                    loc='center left',
-                    bbox_to_anchor=(1, 0.3),
-                    title='Net Path Colors')
-
-          
-          ax.set_xlabel('X Coordinate', fontweight='bold')
-          ax.set_ylabel('Y Coordinate', fontweight='bold')
-
-          plt.tight_layout()
-          plt.subplots_adjust(left=0.05, right=0.95, top=0.95, bottom=0.05) 
-          plt.savefig('visualization.png', bbox_inches='tight')  
-          plt.show()
+        plt.tight_layout()
+        plt.subplots_adjust(left=0.05, right=0.85, top=0.95, bottom=0.05) 
+        plt.savefig('visualization.png', bbox_inches='tight')  
+        plt.show()
 
 
 def main():
     
-    
-    input_file = "input.txt"
+    input_file = input("Enter name of the input file: ")
     router = LeeRouter.from_file(input_file)
 
    

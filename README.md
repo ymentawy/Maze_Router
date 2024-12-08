@@ -63,7 +63,9 @@ Adding an obstacle in the place of a pin to check if it's gonna ignore it or not
 ### Test 4
 
 Not putting any obstacles to check if it would break the code, also checking if it would go the correct route by adding a cell at the same coordinates but different metal layer.
+
 ## Visualization plan
+
 Display the grid as a 2D grid
 Obstacles should be highlighted with unique color
 show routed paths using lines and arrows and conection for each net
@@ -71,5 +73,8 @@ use colors for different features such paths and pins
 tools suggested: Matplotlib, library called tinker on python, imshow, scatter
 each cell will hold 0,1,2,3 representing empty space, obstacle, path, start/end points of a net
 chech obstacle list mark obstacle to 1
-initially mark pins to 3 if a path  exists change to 2
+initially mark pins to 3 if a path exists change to 2
 
+#
+
+### Test 5
